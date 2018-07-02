@@ -1,0 +1,8 @@
+<launch>
+
+  <include file="$(find ur5_barrett_moveit_config)/launch/demo.launch"/>
+
+  <node name="ur5_barrett_planning_node" pkg="ur5_barrett_planning" type="ur5_barrett_planning_node" respawn="false" output="screen">
+  </node>
+
+</launch>
