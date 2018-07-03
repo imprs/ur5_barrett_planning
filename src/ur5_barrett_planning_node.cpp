@@ -43,6 +43,21 @@
 #include <moveit_msgs/AttachedCollisionObject.h>
 #include <moveit_msgs/CollisionObject.h>
 
+// Check if value is in given range
+bool inRange(float min, float max, float value)
+{
+	return (value < max) && (value > min);
+}
+
+// Check if pose is inside the workspace
+bool isPoseFeasible(float x, float y, float z)
+{
+	if (inRange(-1.0, 1.0, x) && inRange(0.0, 1.5, y) && inRange(0.0, 0.7, z))
+		return true;
+	else
+		return false;
+}
+
 int main(int argc, char **argv)
 {
 	ros::init(argc, argv, "ur5_barrett_planning_node");
@@ -68,10 +83,21 @@ int main(int argc, char **argv)
 	// class to deal directly with the world.
 	moveit::planning_interface::PlanningSceneInterface planning_scene_interface;  
 
-	// (Optional) Create a publisher for visualizing plans in Rviz.
+	// Create a publisher for visualizing plans in Rviz.
 	ros::Publisher display_publisher = node_handle.advertise<moveit_msgs::DisplayTrajectory>("/move_group/display_planned_path", 1, true);
-	moveit_msgs::DisplayTrajectory display_trajectory;
 
+	// Create a publisher to visulize the goal pose
+	ros::Publisher display_goal_pose_publisher = node_handle.advertise<geometry_msgs::PoseStamped>("/move_group/display_goal_pose", 1);
+
+	// Specify a planner to be used for further planning.
+	group.setPlannerId("RRTConnectkConfigDefault");
+
+	// Set the tolerance that is used for reaching the goal
+	group.setGoalTolerance(0.025);
+
+	// Set workspace
+	// note: planning and execution doesn't take this into account.
+	group.setWorkspace(-1.0, -0.35, 0.0, 1.0, 0.35, 1.5);
 	// Getting Basic Information
 	// ^^^^^^^^^^^^^^^^^^^^^^^^^
 	//
@@ -81,64 +107,75 @@ int main(int argc, char **argv)
 	// We can also print the name of the end-effector link for this group.
 	ROS_INFO("Reference frame: %s", group.getEndEffectorLink().c_str());
 
-	// Planning to a Pose goal
-	// ^^^^^^^^^^^^^^^^^^^^^^^
-	// We can plan a motion for this group to a desired pose for the 
-	// end-effector.
-	/*geometry_msgs::Pose target_pose1;
-	  target_pose1.orientation.w = 1.0;
-	  target_pose1.position.x = 1.0;
-	  target_pose1.position.y = 1.0;
-	  target_pose1.position.z = 1.0;
-	  group.setPoseTarget(target_pose1);*/
-
-	geometry_msgs::PoseStamped target_pose = group.getRandomPose();
-	group.setPoseTarget(target_pose); 
-
-
-	// Now, we call the planner to compute the plan
-	// and visualize it.
-	// Note that we are just planning, not asking move_group 
-	// to actually move the robot.
-	moveit::planning_interface::MoveGroup::Plan my_plan;
-	bool success = group.plan(my_plan);
-
-	ROS_INFO("Visualizing plan (pose goal) %s",success?"":"FAILED");    
-	/* Sleep to give Rviz time to visualize the plan. */
-	sleep(5.0);
-
-	// Visualizing plans
-	// ^^^^^^^^^^^^^^^^^
-	// Now that we have a plan we can visualize it in Rviz.  This is not
-	// necessary because the group.plan() call we made above did this
-	// automatically.  But explicitly publishing plans is useful in cases that we
-	// want to visualize a previously created plan.
-	if (1)
+	while(ros::ok())
 	{
-		ROS_INFO("Visualizing plan (again)");    
-		display_trajectory.trajectory_start = my_plan.start_state_;
-		display_trajectory.trajectory.push_back(my_plan.trajectory_);
-		display_publisher.publish(display_trajectory);
-		/* Sleep to give Rviz time to visualize the plan. */
-		sleep(5.0);
+		int no_of_poses;
+		std::cout << "Please, enter number of poses to run simulation: ";
+		std::cin >> no_of_poses;
+		while (no_of_poses != 0)
+		{
+			// Planning to a Pose goal
+			// ^^^^^^^^^^^^^^^^^^^^^^^
+			// We can plan a motion for this group to a random pose for the
+			// end-effector.
+			geometry_msgs::PoseStamped target_pose = group.getRandomPose();
+
+			float x = target_pose.pose.position.x;
+			float y = target_pose.pose.position.y;
+			float z = target_pose.pose.position.z;
+
+			// If goal pose is valid set it as target pose
+			// else continue and get new random pose
+			if(isPoseFeasible(x, y, z))
+				group.setPoseTarget(target_pose);
+			else
+				continue;
+
+			// Publish the goal pose for visulization
+			display_goal_pose_publisher.publish(target_pose);
+
+			// Now, we call the planner to compute the plan
+			// and visualize it.
+			// Note that we are just planning, not asking move_group
+			// to actually move the robot.
+			moveit::planning_interface::MoveGroup::Plan my_plan;
+			bool plan_success = group.plan(my_plan);
+
+			ROS_INFO("Visualizing plan (pose goal) %s",plan_success?"":"FAILED");
+			/* Sleep to give Rviz time to visualize the plan. */
+			sleep(5.0);
+
+			// Visualizing plans
+			// ^^^^^^^^^^^^^^^^^
+			// Now that we have a plan we can visualize it in Rviz.  This is not
+			// necessary because the group.plan() call we made above did this
+			// automatically.  But explicitly publishing plans is useful in cases that we
+			// want to visualize a previously created plan.
+			if (plan_success)
+			{
+				ROS_INFO("Visualizing plan (again)");
+
+				//moveit_msgs::DisplayTrajectory display_trajectory;
+				moveit_msgs::DisplayTrajectory display_trajectory;
+				display_trajectory.trajectory_start = my_plan.start_state_;
+				display_trajectory.trajectory.push_back(my_plan.trajectory_);
+				display_publisher.publish(display_trajectory);
+				/* Sleep to give Rviz time to visualize the plan. */
+				sleep(5.0);
+			}
+
+			// Moving to a pose goal
+			// ^^^^^^^^^^^^^^^^^^^^^
+			//
+			// Given a plan, execute it while waiting for completion. Return true on success
+			if(plan_success)
+			{
+				group.execute(my_plan);
+				sleep(5.0);
+			}
+			no_of_poses -= 1;
+		}
 	}
-
-	// Moving to a pose goal
-	// ^^^^^^^^^^^^^^^^^^^^^
-	//
-	// Moving to a pose goal is similar to the step above
-	// except we now use the move() function. Note that
-	// the pose goal we had set earlier is still active 
-	// and so the robot will try to move to that goal. We will
-	// not use that function in this tutorial since it is 
-	// a blocking function and requires a controller to be active
-	// and report success on execution of a trajectory.
-
-	/* Uncomment below line when working with a real robot*/
-	/* group.move() */
-	sleep(4.0);
-
-	// END_TUTORIAL
 	ros::shutdown();  
 	return 0;
 }
