@@ -43,6 +43,8 @@
 #include <moveit_msgs/AttachedCollisionObject.h>
 #include <moveit_msgs/CollisionObject.h>
 
+#include <signal.h>
+
 // Check if value is in given range
 bool inRange(float min, float max, float value)
 {
@@ -58,10 +60,17 @@ bool isPoseFeasible(float x, float y, float z)
 		return false;
 }
 
+void exitGracefully(int sig)
+{
+  // All the default sigint handler does is call shutdown()
+  ros::shutdown();
+}
+
 int main(int argc, char **argv)
 {
 	ros::init(argc, argv, "ur5_barrett_planning_node");
-	ros::NodeHandle node_handle;  
+	ros::NodeHandle node_handle;
+	signal(SIGINT, exitGracefully);
 	ros::AsyncSpinner spinner(1);
 	spinner.start();
 
