@@ -112,6 +112,13 @@ int main(int argc, char **argv)
 		int no_of_poses;
 		std::cout << "Please, enter number of poses to run simulation: ";
 		std::cin >> no_of_poses;
+		if(std::cin.fail())
+		{
+			std::cin.clear();
+			std::cin.ignore(999,'\n');
+			std::cout << "Please, enter valid input!! " << std::endl;
+			continue;
+		}
 		while (no_of_poses != 0)
 		{
 			// Planning to a Pose goal
