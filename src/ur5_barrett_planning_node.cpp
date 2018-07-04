@@ -128,7 +128,8 @@ int main(int argc, char **argv)
 			std::cout << "Please, enter valid input!! " << std::endl;
 			continue;
 		}
-		while (no_of_poses != 0)
+		int pose_no = 0;
+		while ( pose_no != no_of_poses)
 		{
 			// Planning to a Pose goal
 			// ^^^^^^^^^^^^^^^^^^^^^^^
@@ -147,6 +148,19 @@ int main(int argc, char **argv)
 			else
 				continue;
 
+			// Increase pose number as it's valid
+			pose_no += 1;
+
+			// Conversion from geometry_msg::Quaternion -> tf::Quaternion -> RPY
+			tf::Quaternion orientation;
+			double roll, pitch, yaw;
+
+			tf::quaternionMsgToTF(target_pose.pose.orientation, orientation);
+			tf::Matrix3x3(orientation).getRPY(roll, pitch, yaw);
+
+			ROS_INFO("-----Pose Number : %d-----", pose_no);
+			ROS_INFO("-----Pose 6D : X: %f, Y:%f, Z:%f, R:%lf, P:%lf, Y:%lf -----\n", x, y, z, roll, pitch, yaw);
+
 			// Publish the goal pose for visulization
 			display_goal_pose_publisher.publish(target_pose);
 
@@ -157,7 +171,7 @@ int main(int argc, char **argv)
 			moveit::planning_interface::MoveGroup::Plan my_plan;
 			bool plan_success = group.plan(my_plan);
 
-			ROS_INFO("Visualizing plan (pose goal) %s",plan_success?"":"FAILED");
+			ROS_INFO("-----Pose is %s-----\n",plan_success?"REACHABLE":"UNREACHABLE");
 			/* Sleep to give Rviz time to visualize the plan. */
 			sleep(5.0);
 
@@ -189,7 +203,6 @@ int main(int argc, char **argv)
 				group.execute(my_plan);
 				sleep(5.0);
 			}
-			no_of_poses -= 1;
 		}
 	}
 	ros::shutdown();  
