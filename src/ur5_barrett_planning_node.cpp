@@ -119,9 +119,9 @@ int main(int argc, char **argv)
 	while(ros::ok())
 	{
 		int no_of_poses;
-		std::cout << "Please, enter number of poses to run simulation: ";
+		std::cout << "Please, enter number of poses to run simulation (0 - 100): ";
 		std::cin >> no_of_poses;
-		if(std::cin.fail())
+		if(std::cin.fail() || no_of_poses <= 0 || no_of_poses > 100)
 		{
 			std::cin.clear();
 			std::cin.ignore(999,'\n');
