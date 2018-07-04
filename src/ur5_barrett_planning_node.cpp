@@ -43,7 +43,14 @@
 #include <moveit_msgs/AttachedCollisionObject.h>
 #include <moveit_msgs/CollisionObject.h>
 
+#include <ros/package.h>
+
 #include <signal.h>
+
+#include <fstream>
+
+// Create an ofstream for the file output
+std::ofstream outputFile;
 
 // Check if value is in given range
 bool inRange(float min, float max, float value)
@@ -62,8 +69,10 @@ bool isPoseFeasible(float x, float y, float z)
 
 void exitGracefully(int sig)
 {
-  // All the default sigint handler does is call shutdown()
-  ros::shutdown();
+	// close the output file
+	outputFile.close();
+	// All the default sigint handler does is call shutdown()
+	ros::shutdown();
 }
 
 int main(int argc, char **argv)
@@ -74,6 +83,11 @@ int main(int argc, char **argv)
 	ros::AsyncSpinner spinner(1);
 	spinner.start();
 
+	// Get package path
+	std::string path = ros::package::getPath("ur5_barrett_planning");
+
+	// Create a name for the file output
+	std::string filename = path + "/poseInfo.csv";
 
 	/* This sleep is ONLY to allow Rviz to come up */
 	sleep(20.0);
@@ -96,7 +110,7 @@ int main(int argc, char **argv)
 	ros::Publisher display_publisher = node_handle.advertise<moveit_msgs::DisplayTrajectory>("/move_group/display_planned_path", 1, true);
 
 	// Create a publisher to visulize the goal pose
-	ros::Publisher display_goal_pose_publisher = node_handle.advertise<geometry_msgs::PoseStamped>("/move_group/display_goal_pose", 1);
+	ros::Publisher display_goal_pose_publisher = node_handle.advertise<geometry_msgs::PoseStamped>("/display_goal_pose", 1);
 
 	// Specify a planner to be used for further planning.
 	group.setPlannerId("RRTConnectkConfigDefault");
@@ -129,6 +143,11 @@ int main(int argc, char **argv)
 			continue;
 		}
 		int pose_no = 0;
+		// create and open the .csv file
+		outputFile.open(filename);
+
+		// write the file headers
+		outputFile << "Pose_no" << "," << "X" << ","<< "Y" << "," <<"Z" << "," <<"Roll" << "," << "Pitch" << "," << "Yaw"<< "," << "Success"<< std::endl;
 		while ( pose_no != no_of_poses)
 		{
 			// Planning to a Pose goal
@@ -171,7 +190,7 @@ int main(int argc, char **argv)
 			moveit::planning_interface::MoveGroup::Plan my_plan;
 			bool plan_success = group.plan(my_plan);
 
-			ROS_INFO("-----Pose is %s-----\n",plan_success?"REACHABLE":"UNREACHABLE");
+			ROS_INFO("-----Plan (pose goal) %s -----\n",plan_success?"SUCCESS":"FAILED");
 			/* Sleep to give Rviz time to visualize the plan. */
 			sleep(5.0);
 
@@ -198,12 +217,19 @@ int main(int argc, char **argv)
 			// ^^^^^^^^^^^^^^^^^^^^^
 			//
 			// Given a plan, execute it while waiting for completion. Return true on success
+			bool execution_success = false;
 			if(plan_success)
 			{
-				group.execute(my_plan);
+				execution_success = group.execute(my_plan);
+				ROS_INFO("-----Pose is %s-----\n",execution_success?"REACHABLE":"UNREACHABLE");
 				sleep(5.0);
 			}
+			// Write the data to the output file
+			outputFile << pose_no << "," << x << ","<< y << "," << z << "," << roll << "," << pitch << "," << yaw << "," << execution_success << std::endl;
+
 		}
+		// close the output file
+		outputFile.close();
 	}
 	ros::shutdown();  
 	return 0;
