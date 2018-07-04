@@ -13,7 +13,7 @@ There are 3 packages in the group.
 
 ### Make
   - Create a workspace http://wiki.ros.org/catkin/Tutorials/create_a_workspace
-  - Unzip the src.zip into <workspace>
+  - Unzip src.zip into the workspace
   - Build the workspace with command: 
     ```
     $ catkin_make
